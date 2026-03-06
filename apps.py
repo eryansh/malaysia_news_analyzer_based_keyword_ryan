@@ -34,24 +34,33 @@ def get_news(keyword, limit):
 
 @st.cache_data(show_spinner=False)
 def analyze_with_llm(titles, target_lang):
-    titles_string = "\n".join([f"{i+1}. {t}" for i, t in enumerate(titles)])
-    system_prompt = "You are a Strategic Data Scientist. Output ONLY raw JSON."
-    top_n = min(15, len(titles))
+    # FIX 1: Clean titles to prevent JSON breakage (replace double quotes with single)
+    clean_titles = [t.replace('"', "'").replace('\\', "") for t in titles]
     
+    titles_string = "\n".join([f"{i+1}. {t}" for i, t in enumerate(clean_titles)])
+    system_prompt = "You are a Strategic Data Scientist. You MUST output ONLY raw, valid JSON."
+    top_n = min(15, len(clean_titles))
+    
+    # FIX 2: Provide an exact JSON dictionary template
     user_prompt = f"""
-    Based on these {len(titles)} news titles:
+    Based on these {len(clean_titles)} news titles:
     {titles_string}
 
-    Please provide a deep analysis in JSON format. 
+    Please provide a deep analysis. 
     IMPORTANT: Use {target_lang} for all text fields.
-
-    Structure:
-    1. individual_analysis: [{{"id": 1, "title": "...", "sentiment": "Positive/Negative/Neutral"}}] -> ONLY list the top {top_n} most impactful news here.
-    2. deep_summary: "A detailed 2-paragraph summary based on all {len(titles)} news."
-    3. categories: ["List of news categories"]
-    4. strategic_actions: ["3 concrete action recommendations"]
-    5. dominant_vibe: "Overall main sentiment"
-    6. sentiment_percentage: {{"Positive": 40, "Negative": 30, "Neutral": 30}} -> Provide integer percentages summing to 100.
+    Respond ONLY with a valid JSON object using this EXACT structure:
+    {{
+        "individual_analysis": [
+            {{"id": 1, "title": "News title here", "sentiment": "Positive/Negative/Neutral"}}
+        ],
+        "deep_summary": "A detailed 2-paragraph summary based on all news.",
+        "categories": ["Category 1", "Category 2"],
+        "strategic_actions": ["Action 1", "Action 2", "Action 3"],
+        "dominant_vibe": "Overall main sentiment",
+        "sentiment_percentage": {{"Positive": 40, "Negative": 30, "Neutral": 30}}
+    }}
+    
+    Note: ONLY list the top {top_n} most impactful news in the individual_analysis array.
     """
 
     try:
@@ -61,7 +70,8 @@ def analyze_with_llm(titles, target_lang):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
+            temperature=0.3 # FIX 3: Lower temperature for more stable formatting
         )
         return json.loads(completion.choices[0].message.content)
     except Exception as e:
@@ -168,4 +178,5 @@ if analyze_btn:
                         for item in data.get('individual_analysis', []):
                             s = item.get('sentiment', 'Neutral')
                             icon = "🟢" if s in ["Positive", "Positif"] else "🔴" if s in ["Negative", "Negatif"] else "⚪"
+
                             st.markdown(f"{icon} **[{s}]** {item.get('title')}")

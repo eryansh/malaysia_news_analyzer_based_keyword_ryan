@@ -41,7 +41,7 @@ def analyze_with_llm(titles, target_lang):
     system_prompt = "You are a Strategic Data Scientist. You MUST output ONLY raw, valid JSON."
     top_n = min(15, len(clean_titles))
     
-   user_prompt = f"""
+    user_prompt = f"""
     Based on these {len(clean_titles)} news titles:
     {titles_string}
 
@@ -75,7 +75,7 @@ def analyze_with_llm(titles, target_lang):
         return json.loads(completion.choices[0].message.content)
     except Exception as e:
         return {"error": str(e)}
-
+        
 def get_top_words(titles, top_n=35):
     # Combine all titles into one lowercase string
     text = " ".join(titles).lower()
@@ -179,6 +179,7 @@ if analyze_btn:
                         s = item.get('sentiment', 'Neutral')
                         icon = "🟢" if s in ["Positive", "Positif"] else "🔴" if s in ["Negative", "Negatif"] else "⚪"
                         st.markdown(f"{icon} **[{s}]** {item.get('title')}")
+
 
 
 

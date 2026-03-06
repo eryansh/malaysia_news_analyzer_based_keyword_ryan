@@ -34,14 +34,13 @@ def get_news(keyword, limit):
 
 @st.cache_data(show_spinner=False)
 def analyze_with_llm(titles, target_lang):
-    # FIX 1: Clean titles to prevent JSON breakage (replace double quotes with single)
-    clean_titles = [t.replace('"', "'").replace('\\', "") for t in titles]
+    # Clean titles: prevent JSON breakage and format slashes properly
+    clean_titles = [t.replace('"', "'").replace('\\', "").replace('/', ' ') for t in titles]
     
     titles_string = "\n".join([f"{i+1}. {t}" for i, t in enumerate(clean_titles)])
     system_prompt = "You are a Strategic Data Scientist. You MUST output ONLY raw, valid JSON."
     top_n = min(15, len(clean_titles))
     
-    # FIX 2: Provide an exact JSON dictionary template
     user_prompt = f"""
     Based on these {len(clean_titles)} news titles:
     {titles_string}
@@ -71,7 +70,7 @@ def analyze_with_llm(titles, target_lang):
                 {"role": "user", "content": user_prompt}
             ],
             response_format={"type": "json_object"},
-            temperature=0.3 # FIX 3: Lower temperature for more stable formatting
+            temperature=0.3
         )
         return json.loads(completion.choices[0].message.content)
     except Exception as e:
@@ -173,10 +172,11 @@ if analyze_btn:
                     st.subheader("📊 Visualizations")
                     show_charts(titles, data.get('sentiment_percentage', {"Positive": 33, "Negative": 33, "Neutral": 34}))
                     
-                    # Individual Sentiment List
-                    with st.expander(f"🔍 View Individual Sentiment Analysis (Top {min(15, len(titles))})"):
-                        for item in data.get('individual_analysis', []):
-                            s = item.get('sentiment', 'Neutral')
-                            icon = "🟢" if s in ["Positive", "Positif"] else "🔴" if s in ["Negative", "Negatif"] else "⚪"
+                    st.divider()
 
-                            st.markdown(f"{icon} **[{s}]** {item.get('title')}")
+                    # Individual Sentiment List (Now fully visible, no expander)
+                    st.subheader(f"🔍 Individual Sentiment Analysis (Top {min(15, len(titles))})")
+                    for item in data.get('individual_analysis', []):
+                        s = item.get('sentiment', 'Neutral')
+                        icon = "🟢" if s in ["Positive", "Positif"] else "🔴" if s in ["Negative", "Negatif"] else "⚪"
+                        st.markdown(f"{icon} **[{s}]** {item.get('title')}")

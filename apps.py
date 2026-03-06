@@ -144,7 +144,7 @@ if analyze_btn:
                     summary = data.get('deep_summary', 'Tiada ringkasan dijana.')
                     if isinstance(summary, dict):
                         summary = " ".join(summary.values())
-                    st.write(summary)
+                    st.markdown(f"<div style='text-align: justify; line-height: 1.6;'>{summary}</div>", unsafe_allow_html=True)
                     
                     st.subheader("🚀 Tindakan Strategik")
                     actions = data.get('strategic_actions', [])
@@ -181,6 +181,7 @@ if analyze_btn:
                             st.markdown(f"{icon} **[{display_s}]** {actual_title}")
                     else:
                         st.info("Tiada analisis individu dijana.")
+
 
 
 

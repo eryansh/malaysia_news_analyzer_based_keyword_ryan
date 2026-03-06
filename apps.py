@@ -34,8 +34,8 @@ def get_news(keyword, limit):
 
 @st.cache_data(show_spinner=False)
 def analyze_with_llm(titles, target_lang):
-    # Clean titles: prevent JSON breakage and format slashes properly
-    clean_titles = [t.replace('"', "'").replace('\\', "").replace('/', ' ') for t in titles]
+    # THE BULLETPROOF FIX: Use regex to strip all quotes (standard & smart) and replace forward slashes with spaces
+    clean_titles = [re.sub(r'[\\"\'“”‘’]', ' ', t).replace('/', ' ') for t in titles]
     
     titles_string = "\n".join([f"{i+1}. {t}" for i, t in enumerate(clean_titles)])
     system_prompt = "You are a Strategic Data Scientist. You MUST output ONLY raw, valid JSON."
@@ -70,7 +70,7 @@ def analyze_with_llm(titles, target_lang):
                 {"role": "user", "content": user_prompt}
             ],
             response_format={"type": "json_object"},
-            temperature=0.3
+            temperature=0.3 
         )
         return json.loads(completion.choices[0].message.content)
     except Exception as e:
@@ -179,6 +179,7 @@ if analyze_btn:
                         s = item.get('sentiment', 'Neutral')
                         icon = "🟢" if s in ["Positive", "Positif"] else "🔴" if s in ["Negative", "Negatif"] else "⚪"
                         st.markdown(f"{icon} **[{s}]** {item.get('title')}")
+
 
 
 

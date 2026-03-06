@@ -7,16 +7,16 @@ import re
 from collections import Counter
 import pandas as pd
 
-# Setup Groq Client securely using Streamlit Secrets
+# Setup Groq Client menggunakan Streamlit Secrets
 try:
     API_KEY = st.secrets["GROQ_API_KEY"]
 except KeyError:
-    st.error("Missing API Key. Please set GROQ_API_KEY in .streamlit/secrets.toml")
+    st.error("Kunci API Hilang. Sila tetapkan GROQ_API_KEY di .streamlit/secrets.toml")
     st.stop()
 
 client = Groq(api_key=API_KEY)
 
-# --- HELPER FUNCTIONS ---
+# --- FUNGSI BANTUAN ---
 
 @st.cache_data(show_spinner=False)
 def get_news(keyword, limit):
@@ -33,33 +33,34 @@ def get_news(keyword, limit):
     return [entry.title for entry in feed.entries[:limit]] 
 
 @st.cache_data(show_spinner=False)
-def analyze_with_llm(titles, target_lang):
+def analyze_with_llm(titles):
+    # Membersihkan tajuk: buang quote, ganti slash dengan space
     clean_titles = [re.sub(r'[\\"\'“”‘’]', ' ', t).replace('/', ' ') for t in titles]
     
     titles_string = "\n".join([f"{i+1}. {t}" for i, t in enumerate(clean_titles)])
-    system_prompt = "You are a Strategic Data Scientist. You MUST output ONLY raw, valid JSON."
+    system_prompt = "Anda adalah seorang Pakar Analisis Data Strategik. Anda MESTI mengeluarkan HANYA format JSON mentah yang sah."
     top_n = min(15, len(clean_titles))
     
-    # PROMPT DIUBAH: Paksa buat esei panjang dan HANYA minta ID untuk individual_analysis
+    # PROMPT DIUBAH: 100% Bahasa Melayu untuk elak LLM keliru
     user_prompt = f"""
-    Based on these {len(clean_titles)} news titles:
+    Berdasarkan {len(clean_titles)} tajuk berita berikut:
     {titles_string}
 
-    Please provide a deep analysis. 
-    IMPORTANT: Use {target_lang} for all text fields.
-    Respond ONLY with a valid JSON object using this EXACT structure:
+    Sila berikan analisis mendalam. 
+    PENTING: Gunakan Bahasa Melayu sepenuhnya untuk semua teks yang dijanakan.
+    Balas HANYA dengan objek JSON yang sah menggunakan struktur TEPAT ini:
     {{
         "individual_analysis": [
-            {{"id": 1, "sentiment": "Positive/Negative/Neutral"}}
+            {{"id": 1, "sentiment": "Positif/Negatif/Neutral"}}
         ],
-        "deep_summary": "Write a highly detailed, comprehensive essay-style summary (minimum 5 very long paragraphs, aiming for 800+ words). Expand deeply on every issue, trend, and narrative found in the news. Do not be brief.",
-        "categories": ["Category 1", "Category 2"],
-        "strategic_actions": ["Action 1", "Action 2", "Action 3"],
-        "dominant_vibe": "Overall main sentiment",
-        "sentiment_percentage": {{"Positive": 40, "Negative": 30, "Neutral": 30}}
+        "deep_summary": "Tulis satu ringkasan esei yang sangat terperinci dan menyeluruh (minimum 5 perenggan yang panjang, sasaran 800+ patah perkataan). Huraikan secara mendalam setiap isu, trend, dan naratif yang terdapat dalam berita. Jangan tulis terlalu ringkas.",
+        "categories": ["Kategori 1", "Kategori 2"],
+        "strategic_actions": ["Tindakan 1", "Tindakan 2", "Tindakan 3"],
+        "dominant_vibe": "Sentimen utama keseluruhan",
+        "sentiment_percentage": {{"Positif": 40, "Negatif": 30, "Neutral": 30}}
     }}
     
-    Note: For individual_analysis, ONLY output the 'id' (integer) and 'sentiment'. Do NOT output the title text. Provide top {top_n} IDs.
+    Nota: Untuk individual_analysis, HANYA keluarkan 'id' (integer) dan 'sentiment'. JANGAN keluarkan teks tajuk. Berikan ID untuk {top_n} berita teratas.
     """
 
     try:
@@ -70,7 +71,7 @@ def analyze_with_llm(titles, target_lang):
                 {"role": "user", "content": user_prompt}
             ],
             response_format={"type": "json_object"},
-            temperature=0.4 # Naikkan sikit supaya AI lebih kreatif untuk menulis panjang
+            temperature=0.4 
         )
         return json.loads(completion.choices[0].message.content)
     except Exception as e:
@@ -78,99 +79,99 @@ def analyze_with_llm(titles, target_lang):
 
 def get_top_words(titles, top_n=25):
     text = " ".join(titles).lower()
-    # Hanya ambil huruf, abaikan nombor dan simbol
+    # Hanya ambil huruf (termasuk huruf rumi Melayu), abaikan nombor dan simbol
+    # Tidak menggunakan pembuangan 'stopword' bagi mengekalkan struktur teks asal
     words = re.findall(r'\b[a-z]+\b', text)
     word_counts = Counter(words)
     return word_counts.most_common(top_n)
 
-# --- MAIN STREAMLIT APP ---
+# --- APLIKASI UTAMA STREAMLIT ---
 
-st.set_page_config(page_title="News Analysis", page_icon="📰", layout="wide")
+st.set_page_config(page_title="Analisis Berita", page_icon="📰", layout="wide")
 
-st.markdown("<h1 style='text-align: center; color: #1a73e8;'>NEWS ANALYSIS BASED TOPIC KEYWORD</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #1a73e8;'>ANALISIS BERITA BERDASARKAN KATA KUNCI</h1>", unsafe_allow_html=True)
 st.divider()
 
-col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
+# Layout diperkemas kerana dropdown bahasa telah dibuang
+col1, col2, col3 = st.columns([4, 2, 2])
 
 with col1:
     topic = st.text_input("Topik Analisis:", value="Sabah")
 with col2:
-    selected_lang = st.selectbox("Bahasa:", ["English", "Bahasa Malaysia", "Bahasa Indonesia"], index=1)
+    selected_limit = st.selectbox("Maksimum Berita:", [10, 20, 50, 100], index=2)
 with col3:
-    selected_limit = st.selectbox("Max Berita:", [10, 20, 50, 100], index=2)
-with col4:
     st.markdown("<br>", unsafe_allow_html=True)
     analyze_btn = st.button("JANA ANALISIS", type="primary", use_container_width=True)
 
 if analyze_btn:
     if not topic:
-        st.warning("Please enter a topic!")
+        st.warning("Sila masukkan topik!")
     else:
-        with st.status(f"🔍 Processing '{topic}'...", expanded=True) as status:
+        with st.status(f"🔍 Memproses '{topic}'...", expanded=True) as status:
             
-            st.write(f"Fetching max {selected_limit} news articles in {selected_lang}...")
+            st.write(f"Mengambil maksimum {selected_limit} artikel berita...")
             titles = get_news(topic, selected_limit)
             
             if not titles:
-                status.update(label="No news found.", state="error", expanded=True)
-                st.error("❌ No news found.")
+                status.update(label="Tiada berita dijumpai.", state="error", expanded=True)
+                st.error("❌ Tiada berita dijumpai untuk topik ini.")
             else:
-                st.write(f"🧠 AI is analyzing {len(titles)} articles to generate insights...")
-                data = analyze_with_llm(titles, selected_lang)
+                st.write(f"🧠 AI sedang menganalisis {len(titles)} artikel untuk menjana maklumat...")
+                data = analyze_with_llm(titles)
                 
                 if "error" in data:
-                    status.update(label="Analysis failed.", state="error", expanded=True)
-                    st.error(f"❌ ERROR: {data['error']}")
+                    status.update(label="Analisis gagal.", state="error", expanded=True)
+                    st.error(f"❌ RALAT: {data['error']}")
                 else:
-                    status.update(label="Analysis complete!", state="complete", expanded=True)
+                    status.update(label="Analisis selesai!", state="complete", expanded=True)
 
-                    st.success(f"**Dominant Sentiment:** {data.get('dominant_vibe')}")
+                    st.success(f"**Sentimen Dominan:** {data.get('dominant_vibe')}")
                     
                     percents = data.get('sentiment_percentage', {})
                     met_col1, met_col2, met_col3 = st.columns(3)
-                    met_col1.metric("🟢 Positive", f"{percents.get('Positive', 0)}%")
-                    met_col2.metric("🔴 Negative", f"{percents.get('Negative', 0)}%")
+                    met_col1.metric("🟢 Positif", f"{percents.get('Positif', percents.get('Positive', 0))}%")
+                    met_col2.metric("🔴 Negatif", f"{percents.get('Negatif', percents.get('Negative', 0))}%")
                     met_col3.metric("⚪ Neutral", f"{percents.get('Neutral', 0)}%")
                     
                     st.divider()
                     
-                    st.subheader("📝 Executive Summary")
+                    st.subheader("📝 Ringkasan Eksekutif")
                     summary = data.get('deep_summary')
                     if isinstance(summary, dict):
                         summary = " ".join(summary.values())
                     st.write(summary)
                     
-                    st.subheader("🚀 Strategic Actions")
+                    st.subheader("🚀 Tindakan Strategik")
                     actions = data.get('strategic_actions', [])
                     for i, action in enumerate(actions):
                         clean_action = action.get('action', action.get('text', str(action))) if isinstance(action, dict) else action
                         st.markdown(f"**{i+1}.** {clean_action}")
                     
-                    st.markdown(f"**📂 Categories:** {', '.join(data.get('categories', []))}")
+                    st.markdown(f"**📂 Kategori Tumpuan:** {', '.join(data.get('categories', []))}")
                     st.divider()
 
-                    st.subheader("📊 Top 25 Keywords Frequency")
+                    st.subheader("📊 Kekerapan 25 Kata Kunci Teratas")
                     top_words = get_top_words(titles, 25)
                     if top_words:
-                        # GUNA ST.TABLE: Lebih stabil dan kemas dari dataframe
-                        df_words = pd.DataFrame(top_words, columns=["Perkataan (Keyword)", "Kekerapan (Frequency)"])
-                        # Set index bermula dari 1
+                        df_words = pd.DataFrame(top_words, columns=["Perkataan", "Kekerapan"])
                         df_words.index = df_words.index + 1
                         st.table(df_words)
                     
                     st.divider()
 
-                    st.subheader(f"🔍 Individual Sentiment Analysis (Top {min(15, len(titles))})")
-                    # LOGIK BARU: Padankan ID dari JSON dengan tajuk sebenar dalam Python
+                    st.subheader(f"🔍 Analisis Sentimen Individu (Top {min(15, len(titles))})")
                     for item in data.get('individual_analysis', []):
                         idx = item.get('id', 1) - 1
                         
-                        # Pastikan index tak terkeluar dari senarai
                         if 0 <= idx < len(titles):
                             actual_title = titles[idx]
                         else:
                             continue
                             
                         s = item.get('sentiment', 'Neutral')
-                        icon = "🟢" if s in ["Positive", "Positif"] else "🔴" if s in ["Negative", "Negatif"] else "⚪"
-                        st.markdown(f"{icon} **[{s}]** {actual_title}")
+                        icon = "🟢" if s in ["Positif", "Positive"] else "🔴" if s in ["Negatif", "Negative"] else "⚪"
+                        
+                        # Papar dalam BM
+                        display_s = "Positif" if s in ["Positif", "Positive"] else "Negatif" if s in ["Negatif", "Negative"] else "Neutral"
+                        
+                        st.markdown(f"{icon} **[{display_s}]** {actual_title}")

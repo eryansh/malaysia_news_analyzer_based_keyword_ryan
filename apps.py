@@ -41,7 +41,7 @@ def analyze_with_llm(titles, target_lang):
     system_prompt = "You are a Strategic Data Scientist. You MUST output ONLY raw, valid JSON."
     top_n = min(15, len(clean_titles))
     
-    user_prompt = f"""
+   user_prompt = f"""
     Based on these {len(clean_titles)} news titles:
     {titles_string}
 
@@ -52,7 +52,7 @@ def analyze_with_llm(titles, target_lang):
         "individual_analysis": [
             {{"id": 1, "title": "News title here", "sentiment": "Positive/Negative/Neutral"}}
         ],
-        "deep_summary": "A 1000-1200 words summary based on all news.",
+        "deep_summary": "A detailed 700-900 words summary based on all news.",
         "categories": ["Category 1", "Category 2"],
         "strategic_actions": ["Action 1", "Action 2", "Action 3"],
         "dominant_vibe": "Overall main sentiment",
@@ -179,6 +179,7 @@ if analyze_btn:
                         s = item.get('sentiment', 'Neutral')
                         icon = "🟢" if s in ["Positive", "Positif"] else "🔴" if s in ["Negative", "Negatif"] else "⚪"
                         st.markdown(f"{icon} **[{s}]** {item.get('title')}")
+
 
 
 

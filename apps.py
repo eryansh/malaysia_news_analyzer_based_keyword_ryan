@@ -34,13 +34,13 @@ def get_news(keyword, limit):
 
 @st.cache_data(show_spinner=False)
 def analyze_with_llm(titles, target_lang):
-    # THE BULLETPROOF FIX: Use regex to strip all quotes (standard & smart) and replace forward slashes with spaces
     clean_titles = [re.sub(r'[\\"\'“”‘’]', ' ', t).replace('/', ' ') for t in titles]
     
     titles_string = "\n".join([f"{i+1}. {t}" for i, t in enumerate(clean_titles)])
     system_prompt = "You are a Strategic Data Scientist. You MUST output ONLY raw, valid JSON."
     top_n = min(15, len(clean_titles))
     
+    # PROMPT DIUBAH: Paksa buat esei panjang dan HANYA minta ID untuk individual_analysis
     user_prompt = f"""
     Based on these {len(clean_titles)} news titles:
     {titles_string}
@@ -50,16 +50,16 @@ def analyze_with_llm(titles, target_lang):
     Respond ONLY with a valid JSON object using this EXACT structure:
     {{
         "individual_analysis": [
-            {{"id": 1, "title": "News title here", "sentiment": "Positive/Negative/Neutral"}}
+            {{"id": 1, "sentiment": "Positive/Negative/Neutral"}}
         ],
-        "deep_summary": "A detailed 700-900 words summary based on all news.",
+        "deep_summary": "Write a highly detailed, comprehensive essay-style summary (minimum 5 very long paragraphs, aiming for 800+ words). Expand deeply on every issue, trend, and narrative found in the news. Do not be brief.",
         "categories": ["Category 1", "Category 2"],
         "strategic_actions": ["Action 1", "Action 2", "Action 3"],
         "dominant_vibe": "Overall main sentiment",
         "sentiment_percentage": {{"Positive": 40, "Negative": 30, "Neutral": 30}}
     }}
     
-    Note: ONLY list the top {top_n} most impactful news in the individual_analysis array.
+    Note: For individual_analysis, ONLY output the 'id' (integer) and 'sentiment'. Do NOT output the title text. Provide top {top_n} IDs.
     """
 
     try:
@@ -70,18 +70,16 @@ def analyze_with_llm(titles, target_lang):
                 {"role": "user", "content": user_prompt}
             ],
             response_format={"type": "json_object"},
-            temperature=0.3 
+            temperature=0.4 # Naikkan sikit supaya AI lebih kreatif untuk menulis panjang
         )
         return json.loads(completion.choices[0].message.content)
     except Exception as e:
         return {"error": str(e)}
-        
-def get_top_words(titles, top_n=35):
-    # Combine all titles into one lowercase string
+
+def get_top_words(titles, top_n=25):
     text = " ".join(titles).lower()
-    # Extract all words using regular expressions
-    words = re.findall(r'\b\w+\b', text)
-    # Count frequencies
+    # Hanya ambil huruf, abaikan nombor dan simbol
+    words = re.findall(r'\b[a-z]+\b', text)
     word_counts = Counter(words)
     return word_counts.most_common(top_n)
 
@@ -89,11 +87,9 @@ def get_top_words(titles, top_n=35):
 
 st.set_page_config(page_title="News Analysis", page_icon="📰", layout="wide")
 
-# Header
 st.markdown("<h1 style='text-align: center; color: #1a73e8;'>NEWS ANALYSIS BASED TOPIC KEYWORD</h1>", unsafe_allow_html=True)
 st.divider()
 
-# Controls
 col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
 
 with col1:
@@ -106,7 +102,6 @@ with col4:
     st.markdown("<br>", unsafe_allow_html=True)
     analyze_btn = st.button("JANA ANALISIS", type="primary", use_container_width=True)
 
-# Processing Logic
 if analyze_btn:
     if not topic:
         st.warning("Please enter a topic!")
@@ -129,10 +124,8 @@ if analyze_btn:
                 else:
                     status.update(label="Analysis complete!", state="complete", expanded=True)
 
-                    # --- UI DISPLAY OF RESULTS ---
                     st.success(f"**Dominant Sentiment:** {data.get('dominant_vibe')}")
                     
-                    # Sentiment Metrics
                     percents = data.get('sentiment_percentage', {})
                     met_col1, met_col2, met_col3 = st.columns(3)
                     met_col1.metric("🟢 Positive", f"{percents.get('Positive', 0)}%")
@@ -141,7 +134,6 @@ if analyze_btn:
                     
                     st.divider()
                     
-                    # Summary & Actions
                     st.subheader("📝 Executive Summary")
                     summary = data.get('deep_summary')
                     if isinstance(summary, dict):
@@ -157,34 +149,28 @@ if analyze_btn:
                     st.markdown(f"**📂 Categories:** {', '.join(data.get('categories', []))}")
                     st.divider()
 
-                    # Top 25 Words Table
-                    # Top 25 Words Table
                     st.subheader("📊 Top 25 Keywords Frequency")
                     top_words = get_top_words(titles, 25)
                     if top_words:
-                        df_words = pd.DataFrame(top_words, columns=["Keyword", "Frequency"])
-                        
-                        # ADD THIS LINE: Convert numbers to strings to force left-alignment
-                        df_words["Frequency"] = df_words["Frequency"].astype(str) 
-                        
-                        st.dataframe(df_words, use_container_width=True, hide_index=True)
-
-                    
+                        # GUNA ST.TABLE: Lebih stabil dan kemas dari dataframe
+                        df_words = pd.DataFrame(top_words, columns=["Perkataan (Keyword)", "Kekerapan (Frequency)"])
+                        # Set index bermula dari 1
+                        df_words.index = df_words.index + 1
+                        st.table(df_words)
                     
                     st.divider()
 
-                    # Individual Sentiment List
                     st.subheader(f"🔍 Individual Sentiment Analysis (Top {min(15, len(titles))})")
+                    # LOGIK BARU: Padankan ID dari JSON dengan tajuk sebenar dalam Python
                     for item in data.get('individual_analysis', []):
+                        idx = item.get('id', 1) - 1
+                        
+                        # Pastikan index tak terkeluar dari senarai
+                        if 0 <= idx < len(titles):
+                            actual_title = titles[idx]
+                        else:
+                            continue
+                            
                         s = item.get('sentiment', 'Neutral')
                         icon = "🟢" if s in ["Positive", "Positif"] else "🔴" if s in ["Negative", "Negatif"] else "⚪"
-                        st.markdown(f"{icon} **[{s}]** {item.get('title')}")
-
-
-
-
-
-
-
-
-
+                        st.markdown(f"{icon} **[{s}]** {actual_title}")

@@ -52,7 +52,7 @@ def analyze_with_llm(titles, target_lang):
         "individual_analysis": [
             {{"id": 1, "title": "News title here", "sentiment": "Positive/Negative/Neutral"}}
         ],
-        "deep_summary": "A detailed 2-paragraph summary based on all news.",
+        "deep_summary": "A detailed 5-paragraph summary based on all news.",
         "categories": ["Category 1", "Category 2"],
         "strategic_actions": ["Action 1", "Action 2", "Action 3"],
         "dominant_vibe": "Overall main sentiment",
@@ -179,6 +179,7 @@ if analyze_btn:
                         s = item.get('sentiment', 'Neutral')
                         icon = "🟢" if s in ["Positive", "Positif"] else "🔴" if s in ["Negative", "Negatif"] else "⚪"
                         st.markdown(f"{icon} **[{s}]** {item.get('title')}")
+
 
 
 

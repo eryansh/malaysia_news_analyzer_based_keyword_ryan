@@ -158,12 +158,15 @@ if analyze_btn:
                     st.divider()
 
                     # Top 25 Words Table
+                    # Top 25 Words Table
                     st.subheader("📊 Top 25 Keywords Frequency")
                     top_words = get_top_words(titles, 25)
                     if top_words:
-                        df_words["Frequency"] = df_words["Frequency"].astype(str)
                         df_words = pd.DataFrame(top_words, columns=["Keyword", "Frequency"])
-                        # Display as a clean Streamlit dataframe
+                        
+                        # ADD THIS LINE: Convert numbers to strings to force left-alignment
+                        df_words["Frequency"] = df_words["Frequency"].astype(str) 
+                        
                         st.dataframe(df_words, use_container_width=True, hide_index=True)
 
                     
@@ -176,5 +179,6 @@ if analyze_btn:
                         s = item.get('sentiment', 'Neutral')
                         icon = "🟢" if s in ["Positive", "Positif"] else "🔴" if s in ["Negative", "Negatif"] else "⚪"
                         st.markdown(f"{icon} **[{s}]** {item.get('title')}")
+
 
 

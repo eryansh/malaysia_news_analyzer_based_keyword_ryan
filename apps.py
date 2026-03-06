@@ -3,8 +3,9 @@ import feedparser
 from groq import Groq
 import json
 import urllib.parse
-import matplotlib.pyplot as plt
-from wordcloud import WordCloud
+import re
+from collections import Counter
+import pandas as pd
 
 # Setup Groq Client securely using Streamlit Secrets
 try:
@@ -29,7 +30,6 @@ def get_news(keyword, limit):
     url = f"https://news.google.com/rss/search?q={encoded_keyword}&hl=ms&gl=MY&ceid=MY:ms"
     
     feed = feedparser.parse(url)
-    # Get news up to the user's limit
     return [entry.title for entry in feed.entries[:limit]] 
 
 @st.cache_data(show_spinner=False)
@@ -76,25 +76,14 @@ def analyze_with_llm(titles, target_lang):
     except Exception as e:
         return {"error": str(e)}
 
-def show_charts(titles, sentiment_percentages):
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-    
-    # Pie Chart
-    labels = list(sentiment_percentages.keys())
-    sizes = list(sentiment_percentages.values())
-    colors = ['#4CAF50', '#F44336', '#9E9E9E'] 
-    ax1.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140, colors=colors)
-    ax1.set_title(f'Sentiment Distribution ({len(titles)} News)')
-
-    # Word Cloud
-    all_text = " ".join(titles)
-    wordcloud = WordCloud(width=500, height=400, background_color='white', colormap='ocean').generate(all_text)
-    ax2.imshow(wordcloud, interpolation='bilinear')
-    ax2.axis("off") 
-    ax2.set_title('Top Keywords (Word Cloud)')
-
-    plt.tight_layout()
-    st.pyplot(fig)
+def get_top_words(titles, top_n=25):
+    # Combine all titles into one lowercase string
+    text = " ".join(titles).lower()
+    # Extract all words using regular expressions
+    words = re.findall(r'\b\w+\b', text)
+    # Count frequencies
+    word_counts = Counter(words)
+    return word_counts.most_common(top_n)
 
 # --- MAIN STREAMLIT APP ---
 
@@ -104,7 +93,7 @@ st.set_page_config(page_title="News Analysis", page_icon="📰", layout="wide")
 st.markdown("<h1 style='text-align: center; color: #1a73e8;'>NEWS ANALYSIS BASED TOPIC KEYWORD</h1>", unsafe_allow_html=True)
 st.divider()
 
-# Controls (Using columns for a clean layout)
+# Controls
 col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
 
 with col1:
@@ -114,7 +103,7 @@ with col2:
 with col3:
     selected_limit = st.selectbox("Max Berita:", [10, 20, 50, 100], index=2)
 with col4:
-    st.markdown("<br>", unsafe_allow_html=True) # Push button down to align with inputs
+    st.markdown("<br>", unsafe_allow_html=True)
     analyze_btn = st.button("JANA ANALISIS", type="primary", use_container_width=True)
 
 # Processing Logic
@@ -168,13 +157,17 @@ if analyze_btn:
                     st.markdown(f"**📂 Categories:** {', '.join(data.get('categories', []))}")
                     st.divider()
 
-                    # Charts
-                    st.subheader("📊 Visualizations")
-                    show_charts(titles, data.get('sentiment_percentage', {"Positive": 33, "Negative": 33, "Neutral": 34}))
+                    # Top 25 Words Table
+                    st.subheader("📊 Top 25 Keywords Frequency")
+                    top_words = get_top_words(titles, 25)
+                    if top_words:
+                        df_words = pd.DataFrame(top_words, columns=["Keyword", "Frequency"])
+                        # Display as a clean Streamlit dataframe
+                        st.dataframe(df_words, use_container_width=True, hide_index=True)
                     
                     st.divider()
 
-                    # Individual Sentiment List (Now fully visible, no expander)
+                    # Individual Sentiment List
                     st.subheader(f"🔍 Individual Sentiment Analysis (Top {min(15, len(titles))})")
                     for item in data.get('individual_analysis', []):
                         s = item.get('sentiment', 'Neutral')

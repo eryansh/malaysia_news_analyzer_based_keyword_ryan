@@ -117,17 +117,17 @@ if analyze_btn:
             titles = get_news(topic, selected_limit)
             
             if not titles:
-                status.update(label="No news found.", state="error", expanded=False)
+                status.update(label="No news found.", state="error", expanded=True)
                 st.error("❌ No news found.")
             else:
                 st.write(f"🧠 AI is analyzing {len(titles)} articles to generate insights...")
                 data = analyze_with_llm(titles, selected_lang)
                 
                 if "error" in data:
-                    status.update(label="Analysis failed.", state="error", expanded=False)
+                    status.update(label="Analysis failed.", state="error", expanded=True)
                     st.error(f"❌ ERROR: {data['error']}")
                 else:
-                    status.update(label="Analysis complete!", state="complete", expanded=False)
+                    status.update(label="Analysis complete!", state="complete", expanded=True)
 
                     # --- UI DISPLAY OF RESULTS ---
                     st.success(f"**Dominant Sentiment:** {data.get('dominant_vibe')}")
@@ -173,3 +173,4 @@ if analyze_btn:
                         s = item.get('sentiment', 'Neutral')
                         icon = "🟢" if s in ["Positive", "Positif"] else "🔴" if s in ["Negative", "Negatif"] else "⚪"
                         st.markdown(f"{icon} **[{s}]** {item.get('title')}")
+

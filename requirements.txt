@@ -1,5 +1,4 @@
 streamlit
 feedparser
 groq
-matplotlib
-wordcloud
+pandas

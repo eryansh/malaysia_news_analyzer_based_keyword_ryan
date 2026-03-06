@@ -55,7 +55,7 @@ def analyze_with_llm(titles):
         "individual_analysis": [
             {{"id": 1, "sentiment": "Positif/Negatif/Neutral"}}
         ],
-        "deep_summary": "Tulis satu laporan rumusan yang sangat terperinci dan panjang (minimum 5 perenggan, 800+ patah perkataan). Huraikan secara mendalam setiap isu dan kaitan antara berita-berita ini.",
+        "deep_summary": "Tulis satu rumusan bergaya penceritaan (storytelling) yang sangat menarik, mengalir (flow) dengan baik, dan tidak berulang-ulang. Gunakan gaya bahasa kewartawanan atau majalah yang memikat pembaca, menceritakan jatuh bangun, cabaran, dan pencapaian berkaitan topik ini dalam 4 hingga 5 perenggan yang padat.",
         "categories": ["Kategori 1", "Kategori 2"],
         "strategic_actions": ["Tindakan 1", "Tindakan 2", "Tindakan 3"],
         "dominant_vibe": "Sentimen utama keseluruhan",
@@ -181,3 +181,4 @@ if analyze_btn:
                             st.markdown(f"{icon} **[{display_s}]** {actual_title}")
                     else:
                         st.info("Tiada analisis individu dijana.")
+

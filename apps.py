@@ -7,7 +7,7 @@ import re
 from collections import Counter
 import pandas as pd
 
-# Setup Groq Client menggunakan Streamlit Secrets
+# Setup Groq Client
 try:
     API_KEY = st.secrets["GROQ_API_KEY"]
 except KeyError:
@@ -18,7 +18,7 @@ client = Groq(api_key=API_KEY)
 
 # --- FUNGSI BANTUAN ---
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=3600)
 def get_news(keyword, limit):
     clean_keyword = keyword.strip()
     if ' ' in clean_keyword and not (clean_keyword.startswith('"') and clean_keyword.endswith('"')):
@@ -32,46 +32,48 @@ def get_news(keyword, limit):
     feed = feedparser.parse(url)
     return [entry.title for entry in feed.entries[:limit]] 
 
-@st.cache_data(show_spinner=False)
+# Nota: Kita BUANG st.cache_data di sini supaya jika berlaku ralat, 
+# ia tidak akan 'tersangkut' dan akan cuba menganalisis semula bila butang ditekan.
 def analyze_with_llm(titles):
-    # Membersihkan tajuk: buang quote, ganti slash dengan space
     clean_titles = [re.sub(r'[\\"\'“”‘’]', ' ', t).replace('/', ' ') for t in titles]
-    
     titles_string = "\n".join([f"{i+1}. {t}" for i, t in enumerate(clean_titles)])
-    system_prompt = "Anda adalah seorang Pakar Analisis Data Strategik. Anda MESTI mengeluarkan HANYA format JSON mentah yang sah."
     top_n = min(15, len(clean_titles))
     
-    # PROMPT DIUBAH: 100% Bahasa Melayu untuk elak LLM keliru
+    # Arahan sistem dikemaskini untuk menghalang AI terjemah 'Keys' JSON
+    system_prompt = """Anda adalah seorang Pakar Analisis Data. 
+    AMARAN KERAS: 
+    1. Anda MESTI membalas dengan format JSON yang sah.
+    2. JANGAN TERJEMAH JSON KEYS. Kekalkan keys dalam Bahasa Inggeris ("individual_analysis", "deep_summary", dll).
+    3. Nilai (Values) di dalam JSON mestilah dalam Bahasa Melayu yang profesional."""
+    
     user_prompt = f"""
     Berdasarkan {len(clean_titles)} tajuk berita berikut:
     {titles_string}
 
-    Sila berikan analisis mendalam. 
-    PENTING: Gunakan Bahasa Melayu sepenuhnya untuk semua teks yang dijanakan.
-    Balas HANYA dengan objek JSON yang sah menggunakan struktur TEPAT ini:
+    Berikan objek JSON dengan struktur TEPAT ini:
     {{
         "individual_analysis": [
             {{"id": 1, "sentiment": "Positif/Negatif/Neutral"}}
         ],
-        "deep_summary": "Tulis satu ringkasan esei yang sangat terperinci dan menyeluruh (minimum 5 perenggan yang panjang, sasaran 800+ patah perkataan). Huraikan secara mendalam setiap isu, trend, dan naratif yang terdapat dalam berita. Jangan tulis terlalu ringkas.",
+        "deep_summary": "Tulis satu laporan rumusan yang sangat terperinci dan panjang (minimum 5 perenggan, 800+ patah perkataan). Huraikan secara mendalam setiap isu dan kaitan antara berita-berita ini.",
         "categories": ["Kategori 1", "Kategori 2"],
         "strategic_actions": ["Tindakan 1", "Tindakan 2", "Tindakan 3"],
         "dominant_vibe": "Sentimen utama keseluruhan",
         "sentiment_percentage": {{"Positif": 40, "Negatif": 30, "Neutral": 30}}
     }}
     
-    Nota: Untuk individual_analysis, HANYA keluarkan 'id' (integer) dan 'sentiment'. JANGAN keluarkan teks tajuk. Berikan ID untuk {top_n} berita teratas.
+    Nota PENTING: Untuk individual_analysis, senaraikan HANYA 'id' dan 'sentiment' untuk {top_n} berita pertama. JANGAN masukkan teks tajuk berita ke dalam JSON.
     """
 
     try:
         completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="llama-3.3-70b-versatile", # MODEL DITUKAR: Lebih bijak dan stabil
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
             response_format={"type": "json_object"},
-            temperature=0.4 
+            temperature=0.3 
         )
         return json.loads(completion.choices[0].message.content)
     except Exception as e:
@@ -79,9 +81,13 @@ def analyze_with_llm(titles):
 
 def get_top_words(titles, top_n=25):
     text = " ".join(titles).lower()
-    # Hanya ambil huruf (termasuk huruf rumi Melayu), abaikan nombor dan simbol
-    # Tidak menggunakan pembuangan 'stopword' bagi mengekalkan struktur teks asal
-    words = re.findall(r'\b[a-z]+\b', text)
+    # Hanya ambil perkataan yang panjangnya 3 huruf ke atas
+    words = re.findall(r'\b[a-z]{3,}\b', text)
+    
+    # Penapis asas perkataan BM (Stopwords) supaya jadual lebih relevan
+    stopwords = {'dan', 'yang', 'untuk', 'pada', 'dengan', 'dari', 'dalam', 'kepada', 'oleh', 'akan', 'ini', 'itu', 'ada', 'tak', 'nak', 'buat', 'apa', 'lagi', 'telah', 'tidak', 'iaitu'}
+    words = [w for w in words if w not in stopwords]
+    
     word_counts = Counter(words)
     return word_counts.most_common(top_n)
 
@@ -92,7 +98,6 @@ st.set_page_config(page_title="Analisis Berita", page_icon="📰", layout="wide"
 st.markdown("<h1 style='text-align: center; color: #1a73e8;'>ANALISIS BERITA BERDASARKAN KATA KUNCI</h1>", unsafe_allow_html=True)
 st.divider()
 
-# Layout diperkemas kerana dropdown bahasa telah dibuang
 col1, col2, col3 = st.columns([4, 2, 2])
 
 with col1:
@@ -116,7 +121,7 @@ if analyze_btn:
                 status.update(label="Tiada berita dijumpai.", state="error", expanded=True)
                 st.error("❌ Tiada berita dijumpai untuk topik ini.")
             else:
-                st.write(f"🧠 AI sedang menganalisis {len(titles)} artikel untuk menjana maklumat...")
+                st.write(f"🧠 AI sedang menganalisis {len(titles)} artikel untuk menjana maklumat (mungkin mengambil masa 10-20 saat)...")
                 data = analyze_with_llm(titles)
                 
                 if "error" in data:
@@ -125,7 +130,7 @@ if analyze_btn:
                 else:
                     status.update(label="Analisis selesai!", state="complete", expanded=True)
 
-                    st.success(f"**Sentimen Dominan:** {data.get('dominant_vibe')}")
+                    st.success(f"**Sentimen Dominan:** {data.get('dominant_vibe', 'Tidak Nyata')}")
                     
                     percents = data.get('sentiment_percentage', {})
                     met_col1, met_col2, met_col3 = st.columns(3)
@@ -136,7 +141,7 @@ if analyze_btn:
                     st.divider()
                     
                     st.subheader("📝 Ringkasan Eksekutif")
-                    summary = data.get('deep_summary')
+                    summary = data.get('deep_summary', 'Tiada ringkasan dijana.')
                     if isinstance(summary, dict):
                         summary = " ".join(summary.values())
                     st.write(summary)
@@ -154,24 +159,25 @@ if analyze_btn:
                     top_words = get_top_words(titles, 25)
                     if top_words:
                         df_words = pd.DataFrame(top_words, columns=["Perkataan", "Kekerapan"])
-                        df_words.index = df_words.index + 1
-                        st.table(df_words)
+                        # Guna st.dataframe supaya UI tak kosong atau lari alignment
+                        st.dataframe(df_words, use_container_width=True, hide_index=True)
                     
                     st.divider()
 
                     st.subheader(f"🔍 Analisis Sentimen Individu (Top {min(15, len(titles))})")
-                    for item in data.get('individual_analysis', []):
-                        idx = item.get('id', 1) - 1
-                        
-                        if 0 <= idx < len(titles):
-                            actual_title = titles[idx]
-                        else:
-                            continue
+                    individual_data = data.get('individual_analysis', [])
+                    if individual_data:
+                        for item in individual_data:
+                            idx = item.get('id', 1) - 1
+                            if 0 <= idx < len(titles):
+                                actual_title = titles[idx]
+                            else:
+                                continue
+                                
+                            s = item.get('sentiment', 'Neutral')
+                            icon = "🟢" if s in ["Positif", "Positive"] else "🔴" if s in ["Negatif", "Negative"] else "⚪"
+                            display_s = "Positif" if s in ["Positif", "Positive"] else "Negatif" if s in ["Negatif", "Negative"] else "Neutral"
                             
-                        s = item.get('sentiment', 'Neutral')
-                        icon = "🟢" if s in ["Positif", "Positive"] else "🔴" if s in ["Negatif", "Negative"] else "⚪"
-                        
-                        # Papar dalam BM
-                        display_s = "Positif" if s in ["Positif", "Positive"] else "Negatif" if s in ["Negatif", "Negative"] else "Neutral"
-                        
-                        st.markdown(f"{icon} **[{display_s}]** {actual_title}")
+                            st.markdown(f"{icon} **[{display_s}]** {actual_title}")
+                    else:
+                        st.info("Tiada analisis individu dijana.")
